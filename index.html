@@ -1,1 +1,748 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>江南生徒会AI ハヤト</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b132b;
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+      color: #e0e6ed;
+      font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
 
+    /* メイン3カラム領域（左：予定表 / 中央：ハヤト / 右：関連資料） */
+    .main-stage {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      padding: 16px 20px;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    /* 左右のサイドパネル共通 */
+    .side-panel {
+      width: 280px;
+      background: rgba(16, 28, 56, 0.72);
+      border: 1px solid rgba(91, 192, 190, 0.25);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      background: rgba(8, 14, 33, 0.65);
+      border-bottom: 1px solid rgba(91, 192, 190, 0.2);
+      font-size: 13px;
+      font-weight: bold;
+      color: #6fffe9;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-link-btn {
+      font-size: 11px;
+      color: #5bc0be;
+      text-decoration: none;
+      border: 1px solid rgba(91, 192, 190, 0.4);
+      padding: 2px 8px;
+      border-radius: 10px;
+      transition: 0.2s;
+    }
+
+    .panel-link-btn:hover {
+      background: #5bc0be;
+      color: #0b132b;
+    }
+
+    .panel-body {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 予定アイテム */
+    .event-item {
+      background: rgba(11, 19, 43, 0.75);
+      border-left: 3px solid #3a86ff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .event-date {
+      font-size: 11px;
+      font-weight: bold;
+      color: #6fffe9;
+      margin-bottom: 2px;
+    }
+
+    .event-title {
+      color: #e0e6ed;
+      line-height: 1.4;
+    }
+
+    /* 関連ファイルアイテム */
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(11, 19, 43, 0.75);
+      border: 1px solid rgba(91, 192, 190, 0.25);
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 13px;
+      transition: 0.2s;
+    }
+
+    .file-item:hover {
+      border-color: #00f5d4;
+      background: rgba(58, 134, 255, 0.2);
+      transform: translateX(2px);
+    }
+
+    .file-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty-hint {
+      color: #8d99ae;
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: center;
+      margin-top: 24px;
+      padding: 0 8px;
+    }
+
+    /* 中央ビジュアルエリア */
+    .visual-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .hayato-avatar {
+      height: 65vh;
+      max-height: 650px;
+      min-height: 220px;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 18px rgba(58, 134, 255, 0.45));
+      transition: transform 0.25s ease, filter 0.25s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+
+    .hayato-avatar.loaded { opacity: 1; }
+    .hayato-avatar.thinking { filter: drop-shadow(0 0 25px rgba(58, 134, 255, 0.85)); }
+    .hayato-avatar.speaking {
+      transform: scale(1.04);
+      filter: drop-shadow(0 0 32px rgba(0, 245, 212, 0.85));
+    }
+
+    .status-badge {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #5bc0be;
+      letter-spacing: 1px;
+      height: 20px;
+    }
+
+    /* 字幕エリア */
+    .subtitle-box {
+      background: rgba(16, 28, 56, 0.85);
+      border-top: 1px solid rgba(91, 192, 190, 0.25);
+      padding: 16px 32px;
+      min-height: 105px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .speaker-label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #5bc0be;
+      letter-spacing: 1.5px;
+      margin-bottom: 6px;
+    }
+
+    .message-text {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #ffffff;
+      white-space: pre-wrap;
+    }
+
+    /* 下部操作バー */
+    .control-bar {
+      background: #080e21;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .text-input {
+      flex: 1;
+      height: 46px;
+      border-radius: 23px;
+      border: 1px solid rgba(91, 192, 190, 0.35);
+      background: #111c3a;
+      color: #fff;
+      padding: 0 20px;
+      font-size: 15px;
+      outline: none;
+      min-width: 0;
+    }
+
+    .text-input:focus { border-color: #6fffe9; }
+
+    .send-btn {
+      height: 46px;
+      padding: 0 22px;
+      border-radius: 23px;
+      border: none;
+      background: #3a86ff;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+      flex-shrink: 0;
+    }
+
+    .send-btn:hover {
+      background: #00f5d4;
+      color: #0b132b;
+    }
+
+    /* マイクボタン・ウェイクワードボタン */
+    .mic-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      border: 1px solid rgba(91, 192, 190, 0.45);
+      background: #111c3a;
+      color: #6fffe9;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: 0.2s;
+    }
+
+    .mic-btn:hover {
+      border-color: #00f5d4;
+      background: rgba(58, 134, 255, 0.25);
+    }
+
+    .mic-btn.recording {
+      background: #e63946;
+      border-color: #ff758f;
+      color: #ffffff;
+      animation: micPulse 1.2s infinite;
+    }
+
+    .wake-btn {
+      height: 46px;
+      padding: 0 14px;
+      border-radius: 23px;
+      border: 1px solid rgba(91, 192, 190, 0.45);
+      background: #111c3a;
+      color: #8d99ae;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      transition: 0.2s;
+    }
+
+    .wake-btn.active {
+      background: rgba(0, 245, 212, 0.18);
+      border-color: #00f5d4;
+      color: #6fffe9;
+      box-shadow: 0 0 12px rgba(0, 245, 212, 0.35);
+    }
+
+    @keyframes micPulse {
+      0% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(230, 57, 70, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
+    }
+
+    /* === スマホ・縦画面向け自動調整 === */
+    @media screen and (orientation: portrait), (max-width: 900px) {
+      body {
+        height: auto;
+        min-height: 100dvh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+      }
+
+      .main-stage {
+        flex-direction: column;
+        padding: 12px;
+        gap: 14px;
+        flex: none;
+      }
+
+      .visual-area {
+        order: -1;
+        padding: 8px 0 4px 0;
+      }
+
+      .hayato-avatar {
+        height: 46dvh;
+        max-height: 460px;
+        min-height: 320px;
+      }
+
+      .subtitle-box {
+        order: 0;
+        margin: 0 12px 12px 12px;
+        border: 1px solid rgba(91, 192, 190, 0.3);
+        border-radius: 12px;
+        padding: 14px 16px;
+        max-height: 180px;
+      }
+
+      .message-text { font-size: 14px; }
+
+      .side-panel {
+        display: flex;
+        width: 100%;
+        max-height: 260px;
+      }
+
+      .control-bar {
+        position: sticky;
+        bottom: 0;
+        z-index: 100;
+        padding: 10px 10px;
+        gap: 6px;
+        background: rgba(8, 14, 33, 0.96);
+        backdrop-filter: blur(8px);
+      }
+
+      .send-btn { padding: 0 14px; }
+      .wake-btn { padding: 0 10px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="main-stage">
+    <!-- 左パネル：年間予定表 -->
+    <div class="side-panel">
+      <div class="panel-header">
+        <span>📅 年間予定表</span>
+        <a class="panel-link-btn" href="https://docs.google.com/spreadsheets/d/1OYxfH1C5lJiS7umLSS3jYpc1VdY14mJAeXWoG79Pv5g/edit" target="_blank">シートを開く ↗</a>
+      </div>
+      <div id="calendarList" class="panel-body">
+        <div class="empty-hint">予定表を読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- 中央：ハヤト立ち絵 -->
+    <div class="visual-area">
+      <img id="avatarVisual" class="hayato-avatar" src="" alt="AIハヤト">
+      <div id="statusBadge" class="status-badge">読み込み中...</div>
+    </div>
+
+    <!-- 右パネル：質問にヒットした関連資料 -->
+    <div class="side-panel">
+      <div class="panel-header">
+        <span>📁 関連資料</span>
+      </div>
+      <div id="relatedFilesList" class="panel-body">
+        <div class="empty-hint">質問を送信すると、内容に関連する生徒会資料がここに表示されます。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subtitle-box">
+    <div id="speakerLabel" class="speaker-label">HAYATO</div>
+    <div id="messageText" class="message-text">お疲れ様です。生徒会資料の確認やタスクの整理、年間予定の照会・追加など何でもお申し付けください。</div>
+  </div>
+
+  <div class="control-bar">
+    <button id="wakeBtn" class="wake-btn" type="button" title="「ハヤト」と呼びかけて反応する待機モード切替">👂 待機OFF</button>
+    <button id="micBtn" class="mic-btn" type="button" title="手動で音声入力">🎤</button>
+    <input type="text" id="textInput" class="text-input" placeholder="指示を入力、または「👂待機」でハヤト呼びかけ...">
+    <button id="sendBtn" class="send-btn">送信</button>
+  </div>
+
+  <script>
+    // ▼ 個人Gmail側でデプロイしたGAS WebアプリURL ▼
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxWrObRwciVwTGd-81GVEEf3k9VP7kCJXLH5Ih8K7yc8-IhtKFPvMBQMNsKcGxbKhBCWQ/exec";
+
+    let IMG_STANDBY  = "";
+    let IMG_SPEAKING = "";
+
+    const avatarVisual = document.getElementById('avatarVisual');
+    const statusBadge = document.getElementById('statusBadge');
+    const speakerLabel = document.getElementById('speakerLabel');
+    const messageText = document.getElementById('messageText');
+    const textInput = document.getElementById('textInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const calendarList = document.getElementById('calendarList');
+    const relatedFilesList = document.getElementById('relatedFilesList');
+    const micBtn = document.getElementById('micBtn');
+    const wakeBtn = document.getElementById('wakeBtn');
+
+    let isProcessing = false;
+    let speakingTimer = null;
+
+    // GAS API 通信ヘルパー
+    async function callGasApi(payload) {
+      const res = await fetch(GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    }
+
+    // 起動時の初期データ読み込み（立ち絵＋年間予定表）
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const data = await callGasApi({ action: "init" });
+        if (data.images) {
+          IMG_STANDBY = data.images.standby;
+          IMG_SPEAKING = data.images.speaking;
+          avatarVisual.src = IMG_STANDBY;
+          avatarVisual.classList.add('loaded');
+          if (data.images.background) {
+            document.body.style.backgroundImage = `linear-gradient(rgba(8, 14, 33, 0.45), rgba(8, 14, 33, 0.45)), url("${data.images.background}")`;
+          }
+        }
+        renderCalendar(data.calendar);
+        statusBadge.textContent = "待機中";
+      } catch (err) {
+        statusBadge.textContent = "⚠️ 接続エラー: " + err.message;
+        calendarList.innerHTML = `<div class="empty-hint">予定の取得に失敗しました</div>`;
+      }
+    });
+
+    async function loadCalendar() {
+      try {
+        const data = await callGasApi({ action: "calendar" });
+        renderCalendar(data.calendar);
+      } catch (err) {
+        calendarList.innerHTML = `<div class="empty-hint">予定の取得に失敗しました</div>`;
+      }
+    }
+
+    function renderCalendar(events) {
+      if (!events || events.length === 0) {
+        calendarList.innerHTML = `<div class="empty-hint">今後の予定は見つかりませんでした</div>`;
+        return;
+      }
+      calendarList.innerHTML = events.map(ev => `
+        <div class="event-item">
+          <div class="event-date">${escapeHtml(ev.date)}</div>
+          <div class="event-title">${escapeHtml(ev.title)}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderRelatedFiles(files) {
+      if (!files || files.length === 0) {
+        relatedFilesList.innerHTML = `<div class="empty-hint">今回の質問に直接一致する資料は見つかりませんでした。</div>`;
+        return;
+      }
+      relatedFilesList.innerHTML = files.map(f => `
+        <a class="file-item" href="${f.url}" target="_blank" title="${escapeHtml(f.name)}">
+          <span>${f.type}</span>
+          <span class="file-name">${escapeHtml(f.name)}</span>
+          <span style="color:#5bc0be; font-size:11px;">↗</span>
+        </a>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function setHayatoState(state) {
+      avatarVisual.classList.remove('thinking', 'speaking');
+      if (state === 'speaking') {
+        if (IMG_SPEAKING) avatarVisual.src = IMG_SPEAKING;
+        avatarVisual.classList.add('speaking');
+      } else if (state === 'thinking') {
+        if (IMG_STANDBY) avatarVisual.src = IMG_STANDBY;
+        avatarVisual.classList.add('thinking');
+      } else {
+        if (IMG_STANDBY) avatarVisual.src = IMG_STANDBY;
+      }
+    }
+
+    function handleTextSubmit() {
+      const text = textInput.value.trim();
+      if (!text || isProcessing) return;
+      textInput.value = "";
+      sendMessageToHayato(text);
+    }
+
+    sendBtn.addEventListener('click', handleTextSubmit);
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleTextSubmit();
+    });
+
+    async function sendMessageToHayato(userText) {
+      isProcessing = true;
+      setHayatoState('thinking');
+      statusBadge.textContent = "⚡処理中...";
+      speakerLabel.textContent = "あなた";
+      messageText.textContent = userText;
+      relatedFilesList.innerHTML = `<div class="empty-hint">関連資料を検索中...</div>`;
+
+      try {
+        const res = await callGasApi({ action: "ask", message: userText });
+        speakerLabel.textContent = "HAYATO";
+        messageText.textContent = res.reply;
+        statusBadge.textContent = res.calendarUpdated ? "✅ 予定表を更新しました" : "回答完了";
+
+        renderRelatedFiles(res.files);
+        if (res.calendarUpdated) loadCalendar();
+
+        setHayatoState('speaking');
+        isProcessing = false;
+
+        if (speakingTimer) clearTimeout(speakingTimer);
+        speakingTimer = setTimeout(() => {
+          if (!isProcessing) {
+            setHayatoState('standby');
+            statusBadge.textContent = wakeModeActive ? "👂 「ハヤト」待機中..." : "待機中";
+            if (wakeModeActive) startWakeListener();
+          }
+        }, 8000);
+      } catch (err) {
+        setHayatoState('standby');
+        statusBadge.textContent = "エラー発生";
+        speakerLabel.textContent = "ERROR";
+        messageText.textContent = "通信エラーが発生しました: " + (err.message || err);
+        isProcessing = false;
+        if (wakeModeActive) startWakeListener();
+      }
+    }
+
+    // === 1. 手動録音（MediaRecorder + Gemini文字起こし） ===
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+
+    micBtn.addEventListener('click', async () => {
+      if (isProcessing) return;
+      if (isRecording && mediaRecorder) {
+        mediaRecorder.stop();
+        return;
+      }
+
+      if (wakeModeActive) stopWakeListener();
+
+      try {
+        statusBadge.textContent = "🎤 マイクを準備中...";
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
+                         MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          isRecording = false;
+          micBtn.classList.remove('recording');
+          stream.getTracks().forEach(track => track.stop());
+
+          const actualMime = mediaRecorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunks, { type: actualMime });
+
+          if (audioBlob.size < 500) {
+            statusBadge.textContent = "⚠️ 音声が短すぎます";
+            if (wakeModeActive) startWakeListener();
+            return;
+          }
+
+          isProcessing = true;
+          statusBadge.textContent = "🎧 音声を解析中...";
+          textInput.placeholder = "音声を文字に変換しています...";
+
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            try {
+              const base64Data = reader.result.split(',')[1];
+              const res = await callGasApi({
+                action: "transcribe",
+                base64Audio: base64Data,
+                mimeType: actualMime.split(';')[0]
+              });
+              isProcessing = false;
+              textInput.placeholder = "指示を入力、または「👂待機」でハヤト呼びかけ...";
+              if (res.success && res.text) {
+                textInput.value = res.text;
+                handleTextSubmit();
+              } else {
+                statusBadge.textContent = "⚠️ 文字起こし失敗: " + (res.error || "");
+                if (wakeModeActive) startWakeListener();
+              }
+            } catch (err) {
+              isProcessing = false;
+              statusBadge.textContent = "⚠️ 通信エラー: " + err.message;
+              if (wakeModeActive) startWakeListener();
+            }
+          };
+          reader.readAsDataURL(audioBlob);
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        micBtn.classList.add('recording');
+        statusBadge.textContent = "🔴 録音中...（話し終わったら🎤を押す）";
+      } catch (err) {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        statusBadge.textContent = "⚠️ マイクエラー: " + err.message;
+      }
+    });
+
+    // === 2. ウェイクワード（「ハヤト」呼びかけ反応）機能 ===
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let wakeModeActive = false;
+    let isAwakeTriggered = false;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ja-JP';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event) => {
+        if (isProcessing || isRecording) return;
+
+        let transcript = "";
+        let isFinal = false;
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) isFinal = true;
+        }
+
+        // 「ハヤト」「はやと」「隼人」を検知したら起動モードへ
+        const wakeRegex = /(ハヤト|はやと|隼人|早人|速人)/;
+        if (!isAwakeTriggered && wakeRegex.test(transcript)) {
+          isAwakeTriggered = true;
+          setHayatoState('speaking');
+          statusBadge.textContent = "✨ はい、何でしょうか？（ご用件をどうぞ）";
+        }
+
+        // 起動後に話し終わったら「ハヤト」を除いた本文を送信
+        if (isAwakeTriggered && isFinal) {
+          const command = transcript.replace(/^(.*?(ハヤト|はやと|隼人|早人|速人)[、。,\s]*)/, "").trim();
+          isAwakeTriggered = false;
+          if (command.length > 0) {
+            stopWakeListener();
+            sendMessageToHayato(command);
+          } else {
+            // 「ハヤト」とだけ呼んだ場合は、そのまま次の発話を待つ
+            isAwakeTriggered = true;
+            statusBadge.textContent = "✨ ご用件をお話しください...";
+          }
+        }
+      };
+
+      recognition.onerror = (e) => {
+        if (e.error === 'not-allowed') {
+          wakeModeActive = false;
+          wakeBtn.classList.remove('active');
+          wakeBtn.textContent = "👂 待機OFF";
+          statusBadge.textContent = "⚠️ マイク権限が拒否されました";
+        }
+      };
+
+      recognition.onend = () => {
+        if (wakeModeActive && !isProcessing && !isRecording) {
+          try { recognition.start(); } catch (e) {}
+        }
+      };
+    }
+
+    function startWakeListener() {
+      if (!recognition) {
+        statusBadge.textContent = "⚠️ このブラウザは常時待機に非対応です（Chrome/Edge推奨）";
+        return;
+      }
+      try {
+        isAwakeTriggered = false;
+        recognition.start();
+        statusBadge.textContent = "👂 「ハヤト」待機中...";
+      } catch (e) {}
+    }
+
+    function stopWakeListener() {
+      if (!recognition) return;
+      try { recognition.stop(); } catch (e) {}
+    }
+
+    wakeBtn.addEventListener('click', () => {
+      wakeModeActive = !wakeModeActive;
+      if (wakeModeActive) {
+        wakeBtn.classList.add('active');
+        wakeBtn.textContent = "👂 待機ON";
+        startWakeListener();
+      } else {
+        wakeBtn.classList.remove('active');
+        wakeBtn.textContent = "👂 待機OFF";
+        stopWakeListener();
+        statusBadge.textContent = "待機中";
+        setHayatoState('standby');
+      }
+    });
+  </script>
+</body>
+</html>
